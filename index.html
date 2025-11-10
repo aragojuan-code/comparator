@@ -247,10 +247,16 @@
 
   // ---- interacción
   let isPointerDown = false;
-  function canvasPos(e){
-    const rect = canvas.getBoundingClientRect();
-    return { x: (e.clientX - rect.left), y: (e.clientY - rect.top) };
-  }
+ function canvasPos(e){
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;   // factor de escala horizontal
+  const scaleY = canvas.height / rect.height; // factor de escala vertical
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top)  * scaleY
+  };
+}
+
 
   canvas.addEventListener('pointerdown', (e)=>{
     const p = canvasPos(e); isPointerDown = true;
