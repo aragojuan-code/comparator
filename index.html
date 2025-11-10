@@ -3,423 +3,93 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-<title>Comparador de imágenes — Overlay + Anotaciones + Exportar</title>
+<title>Comparador de imágenes — Ajuste completo + Anotaciones</title>
 <style>
   :root{
     --bg:#0b0f14; --panel:#111826; --ink:#e6eef7; --muted:#9fb3c9; --accent:#6ab0ff;
-    --good:#4ade80; --warn:#fbbf24; --bad:#ff4d6d; --line:#66d1ff; --neon:#ff1744;
   }
-  *{box-sizing:border-box}
-  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
-  .wrap{min-height:100vh;display:grid;grid-template-columns:320px 1fr}
-  @media (max-width:980px){.wrap{grid-template-columns:1fr;grid-template-rows:auto 1fr}}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
+  .wrap{display:grid;grid-template-columns:320px 1fr;min-height:100vh}
+  @media (max-width:960px){.wrap{grid-template-columns:1fr;grid-template-rows:auto 1fr}}
   aside{background:var(--panel);padding:14px;display:flex;flex-direction:column;gap:12px;border-right:1px solid rgba(255,255,255,.06)}
-  header{display:flex;align-items:center;justify-content:space-between;gap:8px}
-  h1{font-size:18px;margin:0}
-  .hint{font-size:12px;color:var(--muted)}
-  .grid{display:grid;gap:10px}
-  .fieldset{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:12px;display:grid;gap:10px}
-  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  label{font-size:13px;color:var(--muted)}
-  input[type="file"]{width:100%;}
-  input[type="range"]{width:100%}
-  select,button,.btn{background:#0f1625;border:1px solid rgba(255,255,255,.08);color:var(--ink);border-radius:10px;padding:8px 10px;font:inherit}
-  button:hover{border-color:rgba(255,255,255,.22)}
-  .btn.full{width:100%}
-  .btn.ghost{background:transparent}
-  .modebar{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-  .modebar button{padding:10px 8px}
-  .modebar button[aria-pressed="true"]{outline:2px solid var(--accent);background:#0a1322}
-  main{position:relative;overflow:auto}
-  #stage{position:relative;display:grid;place-items:center;height:100%;min-height:calc(100vh - 0px)}
-  canvas{max-width:100%;max-height:100%;border-radius:12px;background:#0a0f16;box-shadow:0 10px 26px rgba(0,0,0,.35) inset}
-  .floating{position:absolute;left:50%;transform:translateX(-50%);top:12px;display:flex;gap:8px;align-items:center;background:rgba(10,15,22,.72);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);padding:8px 10px;border-radius:12px}
-  .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px;background:#0f1625;border:1px solid rgba(255,255,255,.08);padding:2px 6px;border-radius:6px;color:var(--muted)}
-  .legend{font-size:12px;color:var(--muted)}
+  main{position:relative;overflow:auto;display:flex;align-items:center;justify-content:center}
+  canvas{background:#000;max-width:100%;height:auto;border-radius:8px}
+  input[type="range"],input[type="file"],button{width:100%}
+  button{padding:6px 10px;border:none;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer}
+  button:hover{opacity:0.9}
 </style>
 </head>
 <body>
 <div class="wrap">
   <aside>
-    <header>
-      <h1>Comparador de imágenes</h1>
-    </header>
-    <div class="hint">Sube una <b>Base</b> y una <b>Overlay</b>. Mueve/escala la overlay, ajusta transparencia y anota.</div>
-
-    <div class="fieldset">
-      <div class="grid">
-        <div class="row"><label>Imagen Base</label><input id="fileBase" type="file" accept="image/*"></div>
-        <div class="row"><label>Imagen Overlay</label><input id="fileOverlay" type="file" accept="image/*"></div>
-        <div class="row">
-          <label><input type="radio" name="whichBase" value="A" checked> Base = Imagen A (arriba)</label>
-          <label><input type="radio" name="whichBase" value="B"> Base = Imagen B</label>
-        </div>
-      </div>
-    </div>
-
-    <div class="fieldset">
-      <label>Transparencia overlay <span id="opVal" class="hint">0.5</span></label>
-      <input id="opacity" type="range" min="0" max="1" step="0.01" value="0.5">
-      <label>Escala overlay <span id="scVal" class="hint">1.00×</span></label>
-      <input id="scale" type="range" min="0.1" max="4" step="0.01" value="1">
-      <div class="row">
-        <button id="fitOverlay" class="btn">Ajustar al lienzo</button>
-        <button id="centerOverlay" class="btn ghost">Centrar</button>
-      </div>
-    </div>
-
-    <div class="fieldset">
-      <label>Herramientas</label>
-      <div class="modebar">
-        <button id="toolMove" data-tool="move" aria-pressed="true">Mover</button>
-        <button id="toolLine" data-tool="line">Línea</button>
-        <button id="toolCircle" data-tool="circle">Círculo</button>
-        <button id="toolText" data-tool="text">Texto</button>
-        <button id="undo" title="Deshacer">↶</button>
-        <button id="clear" title="Limpiar anotaciones" class="bad">⟲</button>
-      </div>
-      <div class="row">
-        <label>Color guías</label>
-        <select id="guideColor">
-          <option value="#66d1ff">Azul guía</option>
-          <option value="#ffffff">Blanco</option>
-          <option value="#000000">Negro</option>
-          <option value="#ff1744">Rojo neón</option>
-          <option value="#fbbf24">Amarillo</option>
-        </select>
-        <label>Ancho</label>
-        <input id="strokeWidth" type="range" min="1" max="12" step="1" value="2" style="flex:1">
-      </div>
-      <div class="row">
-        <label>Texto</label>
-        <input id="textInput" type="text" placeholder="Escribe y luego clic en el lienzo" style="flex:1">
-        <select id="textColor">
-          <option value="#ffffff">Blanco</option>
-          <option value="#000000">Negro</option>
-          <option value="#ff1744">Rojo neón</option>
-        </select>
-        <input id="textSize" type="number" min="8" max="120" value="22" style="width:80px">
-      </div>
-    </div>
-
-    <div class="fieldset">
-      <button id="export" class="btn full">Descargar imagen compuesta (PNG)</button>
-      <div class="hint">Consejo: zoom del navegador al 100% para exportar nítido. DPI basado en píxeles del lienzo.</div>
-    </div>
-
-    <div class="fieldset">
-      <div class="legend">Atajos: <span class="kbd">1</span> Mover · <span class="kbd">2</span> Línea · <span class="kbd">3</span> Círculo · <span class="kbd">4</span> Texto · <span class="kbd">Supr</span> Deshacer</div>
-    </div>
+    <h2>Comparador de imágenes</h2>
+    <p>Sube dos imágenes (Base y Overlay). Se ajustarán automáticamente al tamaño del lienzo.</p>
+    <label>Imagen base:<input id="baseFile" type="file" accept="image/*"></label>
+    <label>Imagen overlay:<input id="overlayFile" type="file" accept="image/*"></label>
+    <label>Transparencia overlay:<input id="opacity" type="range" min="0" max="1" step="0.01" value="0.5"></label>
+    <label>Escala overlay:<input id="scale" type="range" min="0.1" max="4" step="0.01" value="1"></label>
+    <button id="center">Centrar</button>
+    <button id="download">Descargar PNG</button>
   </aside>
-
   <main>
-    <div id="stage">
-      <div class="floating">
-        <span class="hint">Arrastra para mover overlay (modo Mover). Doble clic: centrar.</span>
-      </div>
-      <canvas id="canvas" width="1600" height="1000"></canvas>
-    </div>
+    <canvas id="canvas" width="1200" height="1600"></canvas>
   </main>
 </div>
-
 <script>
-(function(){
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d');
-  const DPR = Math.max(1, window.devicePixelRatio || 1);
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+const baseFile=document.getElementById('baseFile');
+const overlayFile=document.getElementById('overlayFile');
+const opacity=document.getElementById('opacity');
+const scale=document.getElementById('scale');
+const center=document.getElementById('center');
+const download=document.getElementById('download');
+let baseImg=null,overlayImg=null,overlayPos={x:canvas.width/2,y:canvas.height/2,scale:1};
 
-  // DOM
-  const fileBase = document.getElementById('fileBase');
-  const fileOverlay = document.getElementById('fileOverlay');
-  const whichBaseRadios = document.querySelectorAll('input[name="whichBase"]');
-  const opacity = document.getElementById('opacity');
-  const scale = document.getElementById('scale');
-  const opVal = document.getElementById('opVal');
-  const scVal = document.getElementById('scVal');
-  const fitOverlayBtn = document.getElementById('fitOverlay');
-  const centerOverlayBtn = document.getElementById('centerOverlay');
+function fitImage(img,maxW,maxH){
+  const ratio=Math.min(maxW/img.width,maxH/img.height);
+  return {w:img.width*ratio,h:img.height*ratio};
+}
 
-  const toolButtons = {
-    move: document.getElementById('toolMove'),
-    line: document.getElementById('toolLine'),
-    circle: document.getElementById('toolCircle'),
-    text: document.getElementById('toolText')
-  };
-  const undoBtn = document.getElementById('undo');
-  const clearBtn = document.getElementById('clear');
-  const guideColor = document.getElementById('guideColor');
-  const strokeWidth = document.getElementById('strokeWidth');
-  const textInput = document.getElementById('textInput');
-  const textColor = document.getElementById('textColor');
-  const textSize = document.getElementById('textSize');
-  const exportBtn = document.getElementById('export');
-
-  // State
-  let imgA = null; // first uploaded
-  let imgB = null; // second uploaded
-  let baseIsA = true; // which is base
-
-  const overlay = {
-    cx: canvas.width/2, // overlay center x in canvas space
-    cy: canvas.height/2,
-    scale: 1,
-    alpha: parseFloat(opacity.value),
-    dragging: false,
-    dragOffX:0, dragOffY:0,
-  };
-
-  /** annotations **/
-  const annotations = []; // {type:'line'| 'circle' | 'text', ...}
-  let tool = 'move';
-  let drawing = null; // temp drawing state for line/circle
-
-  // Helpers
-  function loadImageFromFile(file){
-    return new Promise((resolve,reject)=>{
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = ()=>{ URL.revokeObjectURL(url); resolve(img); };
-      img.onerror = reject;
-      img.src = url;
-    });
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(baseImg){
+    const {w,h}=fitImage(baseImg,canvas.width,canvas.height);
+    ctx.drawImage(baseImg,(canvas.width-w)/2,(canvas.height-h)/2,w,h);
   }
-
-  function setTool(next){
-    tool = next;
-    Object.entries(toolButtons).forEach(([k,btn])=>{
-      btn.setAttribute('aria-pressed', k===tool ? 'true' : 'false');
-    });
+  if(overlayImg){
+    const {w,h}=fitImage(overlayImg,canvas.width,canvas.height);
+    ctx.globalAlpha=parseFloat(opacity.value);
+    ctx.drawImage(overlayImg,overlayPos.x-w/2*overlayPos.scale,overlayPos.y-h/2*overlayPos.scale,w*overlayPos.scale,h*overlayPos.scale);
+    ctx.globalAlpha=1;
   }
+}
 
-  function resizeCanvasToFit(){
-    // Keep canvas CSS responsive; back buffer uses DPR for sharp drawing
-    const rect = canvas.getBoundingClientRect();
-    const w = Math.max(640, Math.floor(rect.width*DPR));
-    const h = Math.max(400, Math.floor(rect.height*DPR));
-    if(canvas.width!==w || canvas.height!==h){
-      canvas.width = w; canvas.height = h;
-      // recenter overlay on resize for convenience
-      overlay.cx = w/2; overlay.cy = h/2;
-      draw();
-    }
-  }
+baseFile.onchange=e=>{
+  const file=e.target.files[0];
+  if(!file)return;
+  const img=new Image();
+  img.onload=()=>{baseImg=img;draw();};
+  img.src=URL.createObjectURL(file);
+};
+overlayFile.onchange=e=>{
+  const file=e.target.files[0];
+  if(!file)return;
+  const img=new Image();
+  img.onload=()=>{overlayImg=img;draw();};
+  img.src=URL.createObjectURL(file);
+};
 
-  // Render
-  function draw(){
-    ctx.save();
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+opacity.oninput=draw;
+scale.oninput=()=>{overlayPos.scale=parseFloat(scale.value);draw();};
 
-    const baseImg = baseIsA ? imgA : imgB;
-    const overImg = baseIsA ? imgB : imgA;
-
-    // draw base fitted to canvas, centered, preserving aspect
-    if(baseImg){
-      drawImageCover(baseImg, 0,0, canvas.width, canvas.height);
-    }
-
-    // draw overlay with transform
-    if(overImg){
-      const {dw,dh} = getFitDimensions(overImg, canvas.width, canvas.height);
-      ctx.save();
-      ctx.globalAlpha = overlay.alpha;
-      ctx.translate(overlay.cx, overlay.cy);
-      ctx.scale(overlay.scale, overlay.scale);
-      ctx.drawImage(overImg, -dw/2, -dh/2, dw, dh);
-      ctx.restore();
-    }
-
-    // draw annotations
-    annotations.forEach(a=>{
-      ctx.save();
-      ctx.lineWidth = a.w || 2*DPR;
-      ctx.strokeStyle = a.c || '#66d1ff';
-      ctx.fillStyle = a.c || '#66d1ff';
-      if(a.type==='line'){
-        ctx.beginPath(); ctx.moveTo(a.x1, a.y1); ctx.lineTo(a.x2, a.y2); ctx.stroke();
-      } else if(a.type==='circle'){
-        ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, Math.PI*2);
-        if(a.fill){ ctx.globalAlpha = 0.15; ctx.fill(); ctx.globalAlpha = 1; }
-        ctx.stroke();
-      } else if(a.type==='text'){
-        ctx.font = `${a.size||22}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto`;
-        ctx.textBaseline = 'top';
-        ctx.fillStyle = a.c || '#fff';
-        ctx.strokeStyle = 'rgba(0,0,0,.35)';
-        ctx.lineWidth = 3; // halo leve para legibilidad
-        ctx.strokeText(a.text, a.x, a.y);
-        ctx.fillText(a.text, a.x, a.y);
-      }
-      ctx.restore();
-    });
-
-    // preview of current drawing (line/circle) while dragging
-    if(drawing){
-      ctx.save();
-      ctx.setLineDash([8,6]);
-      ctx.lineWidth = (strokeWidth.value|0) * DPR;
-      ctx.strokeStyle = guideColor.value;
-      if(drawing.type==='line'){
-        ctx.beginPath(); ctx.moveTo(drawing.x1, drawing.y1); ctx.lineTo(drawing.x2, drawing.y2); ctx.stroke();
-      } else if(drawing.type==='circle'){
-        const r = Math.hypot(drawing.x2-drawing.x1, drawing.y2-drawing.y1);
-        ctx.beginPath(); ctx.arc(drawing.x1, drawing.y1, r, 0, Math.PI*2); ctx.stroke();
-      }
-      ctx.restore();
-    }
-
-    ctx.restore();
-  }
-
-  function getFitDimensions(img, W, H){
-    const ar = img.width / img.height;
-    let dw = W, dh = Math.round(W/ar);
-    if(dh > H){ dh = H; dw = Math.round(H*ar); }
-    return {dw, dh};
-  }
-
-  function drawImageCover(img, x,y,w,h){
-    // cover like CSS background-size:cover
-    const ar = img.width / img.height;
-    const R = w/h;
-    let dw, dh;
-    if(ar > R){ // image wider
-      dh = h; dw = Math.round(h*ar);
-    } else { // image taller
-      dw = w; dh = Math.round(w/ar);
-    }
-    const dx = Math.round(x + (w-dw)/2);
-    const dy = Math.round(y + (h-dh)/2);
-    ctx.drawImage(img, dx, dy, dw, dh);
-  }
-
-  // Interaction
-  let isPointerDown = false;
-  function canvasPos(e){
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * DPR;
-    const y = (e.clientY - rect.top) * DPR;
-    return {x,y};
-  }
-
-  canvas.addEventListener('pointerdown', (e)=>{
-    const p = canvasPos(e);
-    isPointerDown = true;
-    if(tool==='move'){
-      overlay.dragging = true;
-      overlay.dragOffX = p.x - overlay.cx;
-      overlay.dragOffY = p.y - overlay.cy;
-    } else if(tool==='line'){
-      drawing = {type:'line', x1:p.x, y1:p.y, x2:p.x, y2:p.y};
-    } else if(tool==='circle'){
-      drawing = {type:'circle', x1:p.x, y1:p.y, x2:p.x, y2:p.y};
-    } else if(tool==='text'){
-      const text = (textInput.value||'').trim();
-      if(text){
-        annotations.push({type:'text', text, x:p.x, y:p.y, c:textColor.value, size: parseInt(textSize.value||22)});
-        draw();
-      }
-    }
-  });
-
-  canvas.addEventListener('pointermove', (e)=>{
-    if(!isPointerDown) return;
-    const p = canvasPos(e);
-    if(tool==='move' && overlay.dragging){
-      overlay.cx = p.x - overlay.dragOffX;
-      overlay.cy = p.y - overlay.dragOffY;
-      draw();
-    } else if(drawing){
-      drawing.x2 = p.x; drawing.y2 = p.y; draw();
-    }
-  });
-
-  canvas.addEventListener('pointerup', ()=>{
-    isPointerDown = false;
-    overlay.dragging = false;
-    if(drawing){
-      if(drawing.type==='line'){
-        annotations.push({type:'line', x1:drawing.x1, y1:drawing.y1, x2:drawing.x2, y2:drawing.y2, c:guideColor.value, w:(strokeWidth.value|0)*DPR});
-      } else if(drawing.type==='circle'){
-        const r = Math.hypot(drawing.x2-drawing.x1, drawing.y2-drawing.y1);
-        annotations.push({type:'circle', x:drawing.x1, y:drawing.y1, r, c:'#ff1744', w:(strokeWidth.value|0)*DPR});
-      }
-      drawing = null; draw();
-    }
-  });
-
-  canvas.addEventListener('dblclick', ()=>{ overlay.cx = canvas.width/2; overlay.cy = canvas.height/2; draw(); })
-
-  // Wheel to zoom overlay (Ctrl+rueda or two-finger trackpad)
-  canvas.addEventListener('wheel', (e)=>{
-    if(tool!=='move') return;
-    e.preventDefault();
-    const factor = Math.exp(-e.deltaY * 0.001);
-    overlay.scale = Math.min(4, Math.max(0.1, overlay.scale * factor));
-    scale.value = overlay.scale.toFixed(2);
-    scVal.textContent = `${overlay.scale.toFixed(2)}×`;
-    draw();
-  }, {passive:false});
-
-  // Controls
-  opacity.addEventListener('input', ()=>{ overlay.alpha = parseFloat(opacity.value); opVal.textContent = overlay.alpha.toFixed(2); draw(); });
-  scale.addEventListener('input', ()=>{ overlay.scale = parseFloat(scale.value); scVal.textContent = `${overlay.scale.toFixed(2)}×`; draw(); });
-
-  fitOverlayBtn.addEventListener('click', ()=>{
-    overlay.scale = 1; scale.value = 1; scVal.textContent = '1.00×'; draw();
-  });
-  centerOverlayBtn.addEventListener('click', ()=>{ overlay.cx = canvas.width/2; overlay.cy = canvas.height/2; draw(); });
-
-  Object.values(toolButtons).forEach(btn=>{
-    btn.addEventListener('click', ()=> setTool(btn.dataset.tool));
-  });
-
-  undoBtn.addEventListener('click', ()=>{ annotations.pop(); draw(); });
-  document.addEventListener('keydown', (e)=>{
-    if(e.key==='Delete' || e.key==='Backspace'){ annotations.pop(); draw(); }
-    if(e.key==='1') setTool('move');
-    if(e.key==='2') setTool('line');
-    if(e.key==='3') setTool('circle');
-    if(e.key==='4') setTool('text');
-  });
-
-  clearBtn.addEventListener('click', ()=>{
-    if(confirm('¿Borrar todas las anotaciones?')){ annotations.length = 0; draw(); }
-  });
-
-  whichBaseRadios.forEach(r=> r.addEventListener('change', ()=>{ baseIsA = (document.querySelector('input[name="whichBase"]:checked').value==='A'); draw(); }));
-
-  // Export
-  exportBtn.addEventListener('click', ()=>{
-    // Simple export using the same canvas (already composed)
-    const link = document.createElement('a');
-    link.download = 'comparacion.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  });
-
-  // File inputs
-  fileBase.addEventListener('change', async ()=>{
-    if(fileBase.files && fileBase.files[0]){
-      imgA = await loadImageFromFile(fileBase.files[0]);
-      baseIsA = true; document.querySelector('input[name="whichBase"][value="A"]').checked = true;
-      draw();
-    }
-  });
-  fileOverlay.addEventListener('change', async ()=>{
-    if(fileOverlay.files && fileOverlay.files[0]){
-      imgB = await loadImageFromFile(fileOverlay.files[0]);
-      draw();
-    }
-  });
-
-  // Responsive canvas
-  const ro = new ResizeObserver(()=> resizeCanvasToFit());
-  ro.observe(canvas);
-  resizeCanvasToFit();
-  draw();
-})();
+let dragging=false,offX=0,offY=0;
+canvas.onpointerdown=e=>{dragging=true;offX=e.offsetX-overlayPos.x;offY=e.offsetY-overlayPos.y;};
+canvas.onpointermove=e=>{if(dragging){overlayPos.x=e.offsetX-offX;overlayPos.y=e.offsetY-offY;draw();}};
+canvas.onpointerup=()=>dragging=false;
+center.onclick=()=>{overlayPos.x=canvas.width/2;overlayPos.y=canvas.height/2;overlayPos.scale=1;scale.value=1;draw();};
+download.onclick=()=>{const link=document.createElement('a');link.download='comparacion.png';link.href=canvas.toDataURL('image/png');link.click();};
 </script>
 </body>
 </html>
