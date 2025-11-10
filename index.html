@@ -5,9 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
 <title>Comparador de imágenes — Overlay + Flechas + Texto + Vídeo 5s</title>
 <style>
-  :root{
-    --bg:#0b0f14; --panel:#111826; --ink:#e6eef7; --muted:#9fb3c9; --accent:#6ab0ff;
-  }
+  :root{ --bg:#0b0f14; --panel:#111826; --ink:#e6eef7; --muted:#9fb3c9; --accent:#6ab0ff; }
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
   .wrap{min-height:100vh;display:grid;grid-template-columns:340px 1fr}
@@ -20,7 +18,7 @@
   .fieldset{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:12px;display:grid;gap:10px}
   .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   label{font-size:13px;color:var(--muted)}
-  input[type="file"]{width:100%;}
+  input[type="file"]{width:100%}
   input[type="range"]{width:100%}
   select,button,.btn{background:#0f1625;border:1px solid rgba(255,255,255,.08);color:var(--ink);border-radius:10px;padding:8px 10px;font:inherit}
   button:hover{border-color:rgba(255,255,255,.22)}
@@ -31,19 +29,18 @@
   .modebar button[aria-pressed="true"]{outline:2px solid var(--accent);background:#0a1322}
   main{position:relative;overflow:auto}
   #stage{position:relative;display:grid;place-items:center;height:100%;min-height:calc(100vh - 0px)}
-  canvas{max-width:100%;max-height:100%;border-radius:12px;background:#0a0f16;box-shadow:0 10px 26px rgba(0,0,0,.35) inset}
+  /* Canvas: tamaño interno fijo; visualmente puede escalarse, pero el buffer no cambia */
+  canvas{width:100%;height:auto;max-width:100%;border-radius:12px;background:#0a0f16;box-shadow:0 10px 26px rgba(0,0,0,.35) inset}
   .floating{position:absolute;left:50%;transform:translateX(-50%);top:12px;display:flex;gap:8px;align-items:center;background:rgba(10,15,22,.72);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);padding:8px 10px;border-radius:12px}
-  .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px;background:#0f1625;border:1px solid rgba(255,255,255,.08);padding:2px 6px;border-radius:6px;color:var(--muted)}
+  .kbd{font-family:ui-monospace, Menlo, Consolas, monospace; font-size:12px;background:#0f1625;border:1px solid rgba(255,255,255,.08);padding:2px 6px;border-radius:6px;color:var(--muted)}
   .legend{font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body>
 <div class="wrap">
   <aside>
-    <header>
-      <h1>Comparador de imágenes</h1>
-    </header>
-    <div class="hint">Sube una <b>Base</b> y una <b>Overlay</b>. Se ajustan para caber enteras. Mueve/escala/rota la overlay, ajusta transparencia y anota (flechas, círculos, texto). Exporta PNG o vídeo (fade 5s).</div>
+    <header><h1>Comparador de imágenes</h1></header>
+    <div class="hint">Sube una <b>Base</b> y una <b>Overlay</b>. Se ven enteras. Mueve/escala/rota la overlay, ajusta transparencia y anota (flechas, círculos, texto). Exporta PNG o vídeo (fade 5s).</div>
 
     <div class="fieldset">
       <div class="grid">
@@ -116,12 +113,9 @@
 
   <main>
     <div id="stage">
-      <div class="floating">
-        <span class="hint">Arrastra para mover overlay (modo Mover). Rueda = zoom overlay · Shift+rueda = rotar fino</span>
-      </div>
-   <canvas id="canvas" width="1600" height="1000"></canvas>
-
-
+      <div class="floating"><span class="hint">Arrastra para mover overlay (modo Mover). Rueda = zoom overlay · Shift+rueda = rotar fino</span></div>
+      <!-- Tamaño interno fijo: NO se cambia en runtime -->
+      <canvas id="canvas" width="1600" height="1000"></canvas>
     </div>
   </main>
 </div>
@@ -130,28 +124,39 @@
 (function(){
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
-const DPR = 1;
+  const DPR = 1; // fijo
 
-
-  // Utilidad: dibujar flecha
+  // ---- utilidades
   function drawArrow(x1,y1,x2,y2,w=2,c='#66d1ff'){
     ctx.save();
-    ctx.lineWidth = w; ctx.strokeStyle = c; ctx.fillStyle = c;
-    // línea
-    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-    // cabeza
-    const ang = Math.atan2(y2-y1,x2-x1);
-    const len = Math.max(8*DPR, 12*DPR);
+    ctx.lineWidth = w; ctx.strokeStyle = c; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    const ang = Math.atan2(y2-y1,x2-x1), len = Math.max(8*DPR,12*DPR);
     ctx.beginPath();
     ctx.moveTo(x2,y2);
     ctx.lineTo(x2 - len*Math.cos(ang + Math.PI/7), y2 - len*Math.sin(ang + Math.PI/7));
     ctx.moveTo(x2,y2);
     ctx.lineTo(x2 - len*Math.cos(ang - Math.PI/7), y2 - len*Math.sin(ang - Math.PI/7));
-    ctx.stroke();
-    ctx.restore();
+    ctx.stroke(); ctx.restore();
+  }
+  function getContainDimensions(img, W, H){
+    const ar = img.width / img.height; let dw = W, dh = Math.round(W/ar);
+    if (dh > H){ dh = H; dw = Math.round(H*ar); } return {dw, dh};
+  }
+  function drawImageContain(img, x,y,w,h){
+    const {dw,dh} = getContainDimensions(img, w, h);
+    const dx = Math.round(x + (w-dw)/2), dy = Math.round(y + (h-dh)/2);
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }
+  function loadImageFromFile(file){
+    return new Promise((resolve,reject)=>{
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = ()=>{ URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = reject; img.src = url;
+    });
   }
 
-  // DOM
+  // ---- DOM
   const fileBase = document.getElementById('fileBase');
   const fileOverlay = document.getElementById('fileOverlay');
   const whichBaseRadios = document.querySelectorAll('input[name="whichBase"]');
@@ -180,86 +185,34 @@ const DPR = 1;
   const exportBtn = document.getElementById('export');
   const exportVideoBtn = document.getElementById('exportVideo');
 
-  // State
-  let imgA = null; // first uploaded
-  let imgB = null; // second uploaded
-  let baseIsA = true; // which is base
-
+  // ---- estado
+  let imgA = null, imgB = null, baseIsA = true;
   const overlay = {
-    cx: canvas.width/2, // overlay center x in canvas space
-    cy: canvas.height/2,
-    scale: 1,
-    rot: 0,
-    alpha: parseFloat(opacity.value),
-    dragging: false,
-    dragOffX:0, dragOffY:0,
+    cx: canvas.width/2, cy: canvas.height/2,
+    scale: 1, rot: 0, alpha: parseFloat(opacity.value),
+    dragging: false, dragOffX:0, dragOffY:0,
   };
-
-  /** annotations **/
-  const annotations = []; // {type:'arrow'| 'circle' | 'text', ...}
-  let tool = 'move';
-  let drawing = null; // temp drawing state for arrow/circle
-
-  // Helpers
-  function loadImageFromFile(file){
-    return new Promise((resolve,reject)=>{
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = ()=>{ URL.revokeObjectURL(url); resolve(img); };
-      img.onerror = reject;
-      img.src = url;
-    });
-  }
+  const annotations = [];
+  let tool = 'move', drawing = null;
+  let firstLoadDone = false;
 
   function setTool(next){
     tool = next;
-    Object.entries(toolButtons).forEach(([k,btn])=>{
-      btn.setAttribute('aria-pressed', k===tool ? 'true' : 'false');
-    });
+    Object.entries(toolButtons).forEach(([k,btn])=> btn.setAttribute('aria-pressed', k===tool?'true':'false'));
   }
 
- function resizeCanvasToFit(){
-  const rect = canvas.getBoundingClientRect();
-  // usa tamaños CSS sin multiplicar por DPR
-  const w = Math.max(640, Math.floor(rect.width));
-  const h = Math.max(400, Math.floor(rect.height));
-
-  if (canvas.width !== w || canvas.height !== h) {
-    const prevW = canvas.width || w;
-    const prevH = canvas.height || h;
-
-    canvas.width = w;
-    canvas.height = h;
-
-    // Mantén la posición relativa de la overlay (no la centres)
-    if (prevW && prevH) {
-      const sx = w / prevW;
-      const sy = h / prevH;
-      overlay.cx *= sx;
-      overlay.cy *= sy;
-    }
-    draw();
-  }
-}
-
-
-  // Render
+  // ---- render
   function draw(){
     ctx.save();
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
 
     const baseImg = baseIsA ? imgA : imgB;
     const overImg = baseIsA ? imgB : imgA;
 
-    // draw base fitted to canvas (CONTAIN: se ve entera)
-    if(baseImg){
-      drawImageContain(baseImg, 0,0, canvas.width, canvas.height);
-    }
+    if (baseImg) drawImageContain(baseImg, 0,0, canvas.width, canvas.height);
 
-    // draw overlay with transform y fitted dims base
-    if(overImg){
+    if (overImg){
       const {dw,dh} = getContainDimensions(overImg, canvas.width, canvas.height);
       ctx.save();
       ctx.globalAlpha = overlay.alpha;
@@ -270,241 +223,121 @@ const DPR = 1;
       ctx.restore();
     }
 
-    // draw annotations SIEMPRE encima
+    // anotaciones arriba
     annotations.forEach(a=>{
       ctx.save();
       ctx.lineWidth = a.w || 2*DPR;
       ctx.strokeStyle = a.c || '#66d1ff';
       ctx.fillStyle = a.c || '#66d1ff';
-      if(a.type==='arrow'){
-        drawArrow(a.x1,a.y1,a.x2,a.y2,a.w||2*DPR,a.c||'#66d1ff');
-      } else if(a.type==='circle'){
-        ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, Math.PI*2);
-        if(a.fill){ ctx.globalAlpha = 0.15; ctx.fill(); ctx.globalAlpha = 1; }
-        ctx.stroke();
-      } else if(a.type==='text'){
-        ctx.font = `${a.size||22}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto`;
-        ctx.textBaseline = 'top';
-        ctx.fillStyle = a.c || '#fff';
-        ctx.strokeStyle = 'rgba(0,0,0,.35)';
-        ctx.lineWidth = 3; // halo leve
-        ctx.strokeText(a.text, a.x, a.y);
-        ctx.fillText(a.text, a.x, a.y);
-      }
+      if(a.type==='arrow'){ drawArrow(a.x1,a.y1,a.x2,a.y2,a.w||2*DPR,a.c||'#66d1ff'); }
+      else if(a.type==='circle'){ ctx.beginPath(); ctx.arc(a.x,a.y,a.r,0,Math.PI*2); if(a.fill){ ctx.globalAlpha=.15; ctx.fill(); ctx.globalAlpha=1; } ctx.stroke(); }
+      else if(a.type==='text'){ ctx.font=`${a.size||22}px ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto`; ctx.textBaseline='top'; ctx.fillStyle=a.c||'#fff'; ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.lineWidth=3; ctx.strokeText(a.text,a.x,a.y); ctx.fillText(a.text,a.x,a.y); }
       ctx.restore();
     });
 
-    // preview while dragging (arrow/circle)
+    // preview
     if(drawing){
-      ctx.save();
-      ctx.setLineDash([8,6]);
-      ctx.lineWidth = (strokeWidth.value|0) * DPR;
-      ctx.strokeStyle = guideColor.value;
-      if(drawing.type==='arrow'){
-        drawArrow(drawing.x1, drawing.y1, drawing.x2, drawing.y2, ctx.lineWidth, guideColor.value);
-      } else if(drawing.type==='circle'){
-        const r = Math.hypot(drawing.x2-drawing.x1, drawing.y2-drawing.y1);
-        ctx.beginPath(); ctx.arc(drawing.x1, drawing.y1, r, 0, Math.PI*2); ctx.stroke();
-      }
+      ctx.save(); ctx.setLineDash([8,6]); ctx.lineWidth=(strokeWidth.value|0)*DPR; ctx.strokeStyle=guideColor.value;
+      if(drawing.type==='arrow') drawArrow(drawing.x1,drawing.y1,drawing.x2,drawing.y2,ctx.lineWidth,guideColor.value);
+      else if(drawing.type==='circle'){ const r=Math.hypot(drawing.x2-drawing.x1,drawing.y2-drawing.y1); ctx.beginPath(); ctx.arc(drawing.x1,drawing.y1,r,0,Math.PI*2); ctx.stroke(); }
       ctx.restore();
     }
-
     ctx.restore();
   }
 
-  function getContainDimensions(img, W, H){
-    const ar = img.width / img.height;
-    let dw = W, dh = Math.round(W/ar);
-    if(dh > H){ dh = H; dw = Math.round(H*ar); }
-    return {dw, dh};
-  }
-
-  function drawImageContain(img, x,y,w,h){
-    const {dw,dh} = getContainDimensions(img, w, h);
-    const dx = Math.round(x + (w-dw)/2);
-    const dy = Math.round(y + (h-dh)/2);
-    ctx.drawImage(img, dx, dy, dw, dh);
-  }
-
-  // Interaction
+  // ---- interacción
   let isPointerDown = false;
   function canvasPos(e){
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * DPR;
-    const y = (e.clientY - rect.top) * DPR;
-    return {x,y};
+    return { x: (e.clientX - rect.left), y: (e.clientY - rect.top) };
   }
 
   canvas.addEventListener('pointerdown', (e)=>{
-    const p = canvasPos(e);
-    isPointerDown = true;
-    if(tool==='move'){
-      overlay.dragging = true;
-      overlay.dragOffX = p.x - overlay.cx;
-      overlay.dragOffY = p.y - overlay.cy;
-    } else if(tool==='arrow'){
-      drawing = {type:'arrow', x1:p.x, y1:p.y, x2:p.x, y2:p.y};
-    } else if(tool==='circle'){
-      drawing = {type:'circle', x1:p.x, y1:p.y, x2:p.x, y2:p.y};
-    } else if(tool==='text'){
-      const text = (textInput.value||'').trim();
-      if(text){
-        annotations.push({type:'text', text, x:p.x, y:p.y, c:textColor.value, size: parseInt(textSize.value||22)});
-        draw();
-      }
-    }
+    const p = canvasPos(e); isPointerDown = true;
+    if(tool==='move'){ overlay.dragging = true; overlay.dragOffX = p.x - overlay.cx; overlay.dragOffY = p.y - overlay.cy; }
+    else if(tool==='arrow'){ drawing = {type:'arrow', x1:p.x, y1:p.y, x2:p.x, y2:p.y}; }
+    else if(tool==='circle'){ drawing = {type:'circle', x1:p.x, y1:p.y, x2:p.x, y2:p.y}; }
+    else if(tool==='text'){ const text=(textInput.value||'').trim(); if(text){ annotations.push({type:'text', text, x:p.x, y:p.y, c:textColor.value, size: parseInt(textSize.value||22)}); draw(); } }
   });
 
   canvas.addEventListener('pointermove', (e)=>{
     if(!isPointerDown) return;
     const p = canvasPos(e);
-    if(tool==='move' && overlay.dragging){
-      overlay.cx = p.x - overlay.dragOffX;
-      overlay.cy = p.y - overlay.dragOffY;
-      draw();
-    } else if(drawing){
-      drawing.x2 = p.x; drawing.y2 = p.y; draw();
-    }
+    if(tool==='move' && overlay.dragging){ overlay.cx = p.x - overlay.dragOffX; overlay.cy = p.y - overlay.dragOffY; draw(); }
+    else if(drawing){ drawing.x2 = p.x; drawing.y2 = p.y; draw(); }
   });
 
   canvas.addEventListener('pointerup', ()=>{
-    isPointerDown = false;
-    overlay.dragging = false;
+    isPointerDown = false; overlay.dragging = false;
     if(drawing){
-      if(drawing.type==='arrow'){
-        annotations.push({type:'arrow', x1:drawing.x1, y1:drawing.y1, x2:drawing.x2, y2:drawing.y2, c:guideColor.value, w:(strokeWidth.value|0)*DPR});
-      } else if(drawing.type==='circle'){
-        const r = Math.hypot(drawing.x2-drawing.x1, drawing.y2-drawing.y1);
-        annotations.push({type:'circle', x:drawing.x1, y:drawing.y1, r, c:'#ff1744', w:(strokeWidth.value|0)*DPR});
-      }
-      drawing = null; draw();
+      if(drawing.type==='arrow'){ annotations.push({type:'arrow', x1:drawing.x1,y1:drawing.y1,x2:drawing.x2,y2:drawing.y2, c:guideColor.value, w:(strokeWidth.value|0)*DPR}); }
+      else if(drawing.type==='circle'){ const r=Math.hypot(drawing.x2-drawing.x1,drawing.y2-drawing.y1); annotations.push({type:'circle', x:drawing.x1, y:drawing.y1, r, c:'#ff1744', w:(strokeWidth.value|0)*DPR}); }
+      drawing=null; draw();
     }
   });
 
-  canvas.addEventListener('dblclick', ()=>{ overlay.cx = canvas.width/2; overlay.cy = canvas.height/2; draw(); })
+  canvas.addEventListener('dblclick', ()=>{ overlay.cx = canvas.width/2; overlay.cy = canvas.height/2; draw(); });
 
-  // Wheel: zoom (normal) y rotación con Shift (en modo mover)
   canvas.addEventListener('wheel', (e)=>{
     if(tool!=='move') return;
     e.preventDefault();
-    if(e.shiftKey){
-      overlay.rot += -e.deltaY * 0.05; // fino
-      rotation.value = overlay.rot.toFixed(1);
-    } else {
-      const factor = Math.exp(-e.deltaY * 0.001);
-      overlay.scale = Math.min(4, Math.max(0.1, overlay.scale * factor));
-      scale.value = overlay.scale.toFixed(2);
-      scVal.textContent = `${overlay.scale.toFixed(2)}×`;
-    }
-    rotVal.textContent = `${(+rotation.value).toFixed(1)}°`;
-    draw();
+    if(e.shiftKey){ overlay.rot += -e.deltaY * 0.05; rotation.value = overlay.rot.toFixed(1); }
+    else { const f=Math.exp(-e.deltaY*0.001); overlay.scale = Math.min(4, Math.max(0.1, overlay.scale*f)); scale.value = overlay.scale.toFixed(2); scVal.textContent = `${overlay.scale.toFixed(2)}×`; }
+    rotVal.textContent = `${(+rotation.value).toFixed(1)}°`; draw();
   }, {passive:false});
 
-  // Controls
+  // ---- controles
   opacity.addEventListener('input', ()=>{ overlay.alpha = parseFloat(opacity.value); opVal.textContent = overlay.alpha.toFixed(2); draw(); });
   scale.addEventListener('input', ()=>{ overlay.scale = parseFloat(scale.value); scVal.textContent = `${overlay.scale.toFixed(2)}×`; draw(); });
   rotation.addEventListener('input', ()=>{ overlay.rot = parseFloat(rotation.value); rotVal.textContent = `${overlay.rot.toFixed(1)}°`; draw(); });
 
-  fitOverlayBtn.addEventListener('click', ()=>{ overlay.scale = 1; scale.value = 1; scVal.textContent = '1.00×'; overlay.rot = 0; rotation.value=0; rotVal.textContent='0°'; draw(); });
+  fitOverlayBtn.addEventListener('click', ()=>{ overlay.scale=1; scale.value=1; scVal.textContent='1.00×'; overlay.rot=0; rotation.value=0; rotVal.textContent='0°'; draw(); });
   centerOverlayBtn.addEventListener('click', ()=>{ overlay.cx = canvas.width/2; overlay.cy = canvas.height/2; draw(); });
 
-  Object.values(toolButtons).forEach(btn=>{
-    btn.addEventListener('click', ()=> setTool(btn.dataset.tool));
-  });
-
+  Object.values(toolButtons).forEach(btn=> btn.addEventListener('click', ()=> setTool(btn.dataset.tool)));
   undoBtn.addEventListener('click', ()=>{ annotations.pop(); draw(); });
-  document.addEventListener('keydown', (e)=>{
-    if(e.key==='Delete' || e.key==='Backspace'){ annotations.pop(); draw(); }
-    if(e.key==='1') setTool('move');
-    if(e.key==='2') setTool('arrow');
-    if(e.key==='3') setTool('circle');
-    if(e.key==='4') setTool('text');
-  });
-
-  clearBtn.addEventListener('click', ()=>{
-    if(confirm('¿Borrar todas las anotaciones?')){ annotations.length = 0; draw(); }
-  });
-
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Delete'||e.key==='Backspace'){ annotations.pop(); draw(); } if(e.key==='1') setTool('move'); if(e.key==='2') setTool('arrow'); if(e.key==='3') setTool('circle'); if(e.key==='4') setTool('text'); });
+  clearBtn.addEventListener('click', ()=>{ if(confirm('¿Borrar todas las anotaciones?')){ annotations.length=0; draw(); } });
   whichBaseRadios.forEach(r=> r.addEventListener('change', ()=>{ baseIsA = (document.querySelector('input[name="whichBase"]:checked').value==='A'); draw(); }));
 
-  // Export imagen
-  exportBtn.addEventListener('click', ()=>{
-    const link = document.createElement('a');
-    link.download = 'comparacion.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  });
+  // ---- export imagen
+  exportBtn.addEventListener('click', ()=>{ const a=document.createElement('a'); a.download='comparacion.png'; a.href=canvas.toDataURL('image/png'); a.click(); });
 
-  // Exportar VIDEO 5s (fade 0→100%) por tiempo (duración exacta)
+  // ---- export video 5s (timer real)
   exportVideoBtn.addEventListener('click', () => {
-    const fps = 30;
-    const duration = 5; // segundos exactos
-
+    const fps = 30, duration = 5;
     const stream = canvas.captureStream(fps);
-    const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9'
-      : 'video/webm;codecs=vp8';
+    const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm;codecs=vp8';
     const rec = new MediaRecorder(stream, { mimeType: mime });
-
     const chunks = [];
-    rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-    rec.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'comparacion_fade_5s.webm';
-      a.click();
-      URL.revokeObjectURL(url);
-      // restaurar alpha si se necesita seguir usando
-      overlay.alpha = savedAlpha;
-      draw();
-    };
-
-    const savedAlpha = overlay.alpha;
-    rec.start();
-
-    // Animación basada en TIEMPO: 0 → 1 en 5 s
-    let start = null;
-    function step(ts) {
-      if (!start) start = ts;
-      const elapsed = (ts - start) / 1000;          // segundos
-      const t = Math.min(1, elapsed / duration);    // 0..1
-      overlay.alpha = t;
-      draw();
-
-      if (elapsed < duration) {
-        requestAnimationFrame(step);
-      } else {
-        overlay.alpha = 1; // asegurar último frame al 100%
-        draw();
-        rec.stop();
-      }
-    }
+    rec.ondataavailable = e => { if (e.data.size>0) chunks.push(e.data); };
+    rec.onstop = () => { const blob=new Blob(chunks,{type:'video/webm'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='comparacion_fade_5s.webm'; a.click(); URL.revokeObjectURL(url); overlay.alpha=savedAlpha; draw(); };
+    const savedAlpha = overlay.alpha; rec.start();
+    let start=null; function step(ts){ if(!start) start=ts; const elapsed=(ts-start)/1000; const t=Math.min(1,elapsed/duration); overlay.alpha=t; draw(); if(elapsed<duration){ requestAnimationFrame(step); } else { overlay.alpha=1; draw(); rec.stop(); } }
     requestAnimationFrame(step);
   });
 
-  // File inputs
+  // ---- carga de archivos (centrado solo en la carga, sin mover después)
   fileBase.addEventListener('change', async ()=>{
     if(fileBase.files && fileBase.files[0]){
       imgA = await loadImageFromFile(fileBase.files[0]);
       baseIsA = true; document.querySelector('input[name="whichBase"][value="A"]').checked = true;
-      draw();
+      if(!firstLoadDone){ overlay.cx = canvas.width/2; overlay.cy = canvas.height/2; }
+      draw(); firstLoadDone = true;
     }
   });
   fileOverlay.addEventListener('change', async ()=>{
     if(fileOverlay.files && fileOverlay.files[0]){
       imgB = await loadImageFromFile(fileOverlay.files[0]);
-      overlay.scale = 1; overlay.rot=0; scale.value=1; rotation.value=0; scVal.textContent='1.00×'; rotVal.textContent='0°';
-      draw();
+      // reset transform de overlay para empezar centrado y bien escalado
+      overlay.scale = 1; overlay.rot = 0; scale.value = 1; rotation.value = 0; scVal.textContent='1.00×'; rotVal.textContent='0°';
+      if(!firstLoadDone){ overlay.cx = canvas.width/2; overlay.cy = canvas.height/2; }
+      draw(); firstLoadDone = true;
     }
   });
 
-  // Responsive canvas
-window.addEventListener('resize', resizeCanvasToFit);
-resizeCanvasToFit(); // una vez al inicio
-draw();
-
+  // primer render
+  draw();
 })();
 </script>
 </body>
